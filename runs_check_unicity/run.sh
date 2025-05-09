@@ -1,0 +1,7 @@
+for i_dir in EL_SC1_patt1 EL_SC1_patt48 EL_SC2_patt1 EL_SC2_patt48 GD_SC1_patt1 GD_SC1_patt48 GD_SC2_patt1 GD_SC2_patt48
+do
+    echo ${i_dir}
+    cd ${i_dir}
+    python *.py &
+    cd ..
+done

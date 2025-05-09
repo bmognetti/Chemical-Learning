@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="34.11953"
+   height="284.97766"
+   version="1.1"
+   id="svg8567"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs8568">
+    <marker
+       style="overflow:visible"
+       id="ConcaveTriangle"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.7)"
+         d="M -2,-4 9,0 -2,4 c 2,-2.33 2,-5.66 0,-8 z"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:none"
+         id="path7" />
+    </marker>
+    <defs
+       id="defs8554" />
+  </defs>
+  <!-- Panel (a): Input cocktails -->
+  <!-- Panel (b): Desired outputs -->
+  <rect
+     x="818.52185"
+     y="-26.546743"
+     width="250"
+     height="250"
+     fill="none"
+     stroke="none"
+     id="rect19" />
+  <circle
+     cx="842.11041"
+     cy="20.378176"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-9"
+     style="fill:#dc322f;fill-opacity:1;stroke-width:0.774144"
+     r="16.55134" />
+  <circle
+     cx="972.54425"
+     cy="145.9843"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6"
+     style="fill:#3227ff;fill-opacity:1;stroke-width:0.805982"
+     r="17.231771" />
+  <circle
+     cx="1095.401"
+     cy="277.80164"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-3"
+     style="fill:#17b517;fill-opacity:1;stroke-width:0.837804"
+     r="17.912201" />
+  <circle
+     cx="844.24835"
+     cy="145.92819"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-0-2-09"
+     style="fill:#dc322f;fill-opacity:1;stroke-width:0.328593"
+     r="7.0253034" />
+  <circle
+     cx="839.7193"
+     cy="278.56412"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-0-2-09-6"
+     style="fill:#dc322f;fill-opacity:1;stroke-width:0.328593;stroke-linecap:butt;stroke-linejoin:round"
+     r="7.0253034" />
+  <circle
+     cx="973.37268"
+     cy="18.761614"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-0"
+     style="fill:#3227ff;fill-opacity:1;stroke-width:0.328593"
+     r="7.0253034" />
+  <circle
+     cx="1097.0225"
+     cy="18.782118"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-0-2"
+     style="fill:#17b517;fill-opacity:1;stroke-width:0.328593"
+     r="7.0253034" />
+  <circle
+     cx="1095.7108"
+     cy="146.96031"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-0-2-0"
+     style="fill:#17b517;fill-opacity:1;stroke-width:0.328593"
+     r="7.0253034" />
+  <circle
+     cx="969.47394"
+     cy="282.33075"
+     fill="#7f00ff"
+     stroke="#000000"
+     id="circle1-6-0-6"
+     style="fill:#3227ff;fill-opacity:1;stroke-width:0.328593"
+     r="7.0253034" />
+  <path
+     style="fill:#005ce0;stroke:#000002;stroke-width:2.91778;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:2.91778, 8.75334;stroke-dashoffset:0"
+     d="m 844.58767,213.80716 c 79.2888,0.0193 158.57763,0.0391 237.86633,0.0583"
+     id="path1-6-1-3-0" />
+  <path
+     style="fill:#005ce0;stroke:#000002;stroke-width:2.91778;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:2.91778, 8.75334;stroke-dashoffset:0"
+     d="M 845.76352,83.573561 C 926.0147,83.111805 1006.2659,82.650025 1086.517,82.18826"
+     id="path1-6-1-8-3-2" />
+  <text
+     x="844.59729"
+     y="-22.934381"
+     font-size="1.97928px"
+     text-anchor="middle"
+     dominant-baseline="baseline"
+     fill="#000000"
+     id="text5-2"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:41.1732px;font-family:Calibri;-inkscape-font-specification:'Calibri Bold';fill:#dc322f;fill-opacity:1;stroke-width:0.962512">x</text>
+  <text
+     x="19.046602"
+     y="27.083353"
+     font-size="1.97928px"
+     text-anchor="middle"
+     dominant-baseline="baseline"
+     fill="#000000"
+     id="text5-2-89"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:42.6667px;font-family:Calibri;-inkscape-font-specification:'Calibri Bold';fill:#dc322f;fill-opacity:1;stroke-width:0.962512;stroke-linecap:butt;stroke-linejoin:round">X:</text>
+  <text
+     x="1097.4962"
+     y="-18.60203"
+     font-size="1.97928px"
+     text-anchor="middle"
+     dominant-baseline="baseline"
+     fill="#000000"
+     id="text5-2-7"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:41.1732px;font-family:Calibri;-inkscape-font-specification:'Calibri Bold';fill:#17b517;fill-opacity:1;stroke-width:0.962512">z</text>
+  <text
+     x="162.1826"
+     y="24.066584"
+     font-size="1.97928px"
+     text-anchor="middle"
+     dominant-baseline="baseline"
+     fill="#000000"
+     id="text5-2-8"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:7.05556px;font-family:Calibri;-inkscape-font-specification:'Calibri Bold';white-space:pre;inline-size:5.24315;display:inline;fill:#3227ff;fill-opacity:1;stroke-width:0.164939"
+     transform="matrix(5.8355564,0,0,5.8355564,27.459453,-162.00381)"
+     xml:space="preserve"><tspan
+       x="162.1826"
+       y="24.066584"
+       id="tspan2">y</tspan></text>
+  <text
+     x="13.651494"
+     y="153.34195"
+     font-size="1.97928px"
+     text-anchor="middle"
+     dominant-baseline="baseline"
+     fill="#000000"
+     id="text5-2-89-5"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:42.6667px;font-family:Calibri;-inkscape-font-specification:'Calibri Bold';fill:#3227ff;fill-opacity:1;stroke-width:0.962512;stroke-linecap:butt;stroke-linejoin:round">Y:</text>
+  <text
+     x="17.982141"
+     y="284.70682"
+     font-size="1.97928px"
+     text-anchor="middle"
+     dominant-baseline="baseline"
+     fill="#000000"
+     id="text5-2-89-5-5"
+     style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:42.6667px;font-family:Calibri;-inkscape-font-specification:'Calibri Bold';fill:#17b517;fill-opacity:1;stroke-width:0.962512;stroke-linecap:butt;stroke-linejoin:round">Z:</text>
+  <!-- Panel (c): Output fugacities -->
+  <!-- Panel (e): Evolved dimerization network -->
+  <!-- Panel (d): Fugacity distributions -->
+  <path
+     style="fill:#000000;fill-opacity:0;stroke:#030303;stroke-width:3.835;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#ConcaveTriangle)"
+     d="m 682.26986,145.6816 c 23.5783,0.48119 47.1566,0.96238 59.18635,1.20297 12.02975,0.2406 12.51094,0.2406 12.99213,0.2406"
+     id="path1" />
+  <path
+     d="m 601.972,-39.464583 -481.54677,1.722378 C 49.802779,-37.489614 43.393684,65.01863 118.3852,64.750414 L 454.9741,63.546519 602.42856,63.019125 C 671.84074,62.770857 682.75129,-39.7535 601.972,-39.464583 Z"
+     fill="none"
+     stroke="#000000"
+     stroke-width="3.47625"
+     id="path1-0"
+     style="opacity:1;mix-blend-mode:normal;fill:none;fill-opacity:1;stroke:#cc0009;stroke-width:2;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1" />
+  <path
+     d="M 601.7644,93.581397 118.20052,95.30357 c -70.918282,0.252567 -77.354213,102.74848 -2.04858,102.4803 l 337.99881,-1.20375 148.07212,-0.52734 C 671.92581,195.80454 682.88206,93.292517 601.7644,93.581397 Z"
+     fill="none"
+     stroke="#000000"
+     stroke-width="3.49789"
+     id="path1-0-9"
+     style="opacity:1;mix-blend-mode:normal;fill:none;fill-opacity:1;stroke:#0c01c7;stroke-width:2;stroke-linecap:butt;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1" />
+  <path
+     d="m 600.07855,223.18923 -480.73387,1.72234 c -70.503235,0.25259 -76.901511,102.75842 -2.03659,102.49021 l 336.0207,-1.20387 147.20555,-0.52739 c 69.29501,-0.24826 80.18714,-102.7702 -0.45579,-102.48129 z"
+     fill="none"
+     stroke="#000000"
+     stroke-width="3.48781"
+     id="path1-0-9-4"
+     style="opacity:1;mix-blend-mode:normal;fill:none;fill-opacity:1;stroke:#01ad1f;stroke-linecap:butt;stroke-linejoin:round;stroke-opacity:1" />
+</svg>

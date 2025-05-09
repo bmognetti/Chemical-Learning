@@ -1,0 +1,783 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[2]:
+
+
+import numpy as np
+import json
+
+class ChemicalNetwork:
+    def __init__(self, num_species=None, num_input=None, num_output=None, \
+                 conc_hidden=None, conc_out=None, config_file=None):
+        """
+        Initialize the Chemical Network
+        :param num_species: Number of chemical species in the network.
+        :param num_input: Number of input nodes.
+        :param num_output: Number of output nodes.
+        :param conc_hidden: Hidden nodes concentration.
+        :param conc_out: Output nodes concentration.
+        :param config_file: Path to the configuration file (JSON format).
+        """
+
+        if config_file:
+            self.load_config(config_file)
+        else:
+            self.num_species = num_species
+            self.num_input = num_input
+            self.num_output = num_output
+            self.conc_hidden = conc_hidden
+            self.conc_out = conc_out
+        self.beta1 = 0.94
+        self.beta2 = 0.9878
+        self.epsilon = np.power(10.,-8)
+        self.conc_hidden_min = 0.2
+        self.conc_hidden_max = 5
+
+        if (self.num_input+self.num_output>self.num_species):
+            raise ValueError("Input and output layers overlap")
+
+        self.K = np.zeros((self.num_species, self.num_species))  # Affinity matrix K_ij
+        self.Ksymm = np.ones((self.num_species, self.num_species)) # Used to enforce symmetry of Ks 
+        for i in range(1,self.num_species):
+            for j in range(0,i):
+                self.Ksymm[i,j]=0.0
+        self.Kmask = np.ones((self.num_species, self.num_species))
+        for i in range(0,self.num_species): # used to set self-interactions = 0
+            self.Kmask[i,i] = 0.0
+        self.Kmask[:self.num_input,:self.num_input] = 0.0 
+
+        # Adam adaptive optimizer method 
+        self.m_DG = np.zeros((self.num_species, self.num_species))
+        self.v_DG = np.zeros((self.num_species, self.num_species))
+        self.m_chidd = 0.0
+        self.v_chidd = 0.0
+
+
+    def load_config(self, config_file):
+        """
+        Load configuration from a JSON file and initialize the class attributes.
+        :param config_file: Path to the configuration file (JSON format).
+        """
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+            self.num_species = config['num_species']
+            self.num_input = config['num_input']
+            self.num_output = config['num_output']
+            self.conc_hidden = config['conc_hidden']
+            self.conc_out = config['conc_out']
+      
+    def save_config(self, config_file):
+        """
+        Save the current configuration to a JSON file.
+        :param config_file: Path to the configuration file (JSON format).
+        """
+        config = {
+            'num_species': self.num_species,
+            'num_input': self.num_input,
+            'num_output': self.num_output,
+            'conc_hidden': self.conc_hidden,
+            'conc_out': self.conc_out
+        }
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=4) 
+
+    def load_k_matrix(self, k_file):
+        """
+        Load the K matrix from a JSON file.
+        :param k_file: Path to the K matrix file (JSON format).
+        """
+        with open(k_file, 'r') as file:
+            k_data = json.load(file)
+            self.K = np.array(k_data['K'])
+
+    def save_k_matrix(self, k_file):
+        K_list = self.K.tolist()
+        k_data = {
+            "K": K_list
+        }
+        with open(k_file, 'w') as file:
+            json.dump(k_data, file, indent=4)
+        
+    def initialise_K(self,sigma_0=None,mean_0=None,K_file=None):
+        if(K_file):
+            self.load_k_matrix(K_file)
+        else:
+            K= np.random.lognormal(mean=mean_0, sigma=sigma_0, size=(self.num_species,self.num_species))
+            K=K*self.Kmask*self.Ksymm
+            K=K+K.T
+            self.K=K        
+
+    # vectorized
+    def network_dynamics(self, K, patterns, conc_hidden, conc_out, precision):
+        """
+        Vectorized network dynamics where all patterns share the same interaction matrix (K)
+
+        :param K: Interaction matrix (shape: [num_species, num_species])
+        :param Input_concentrations: Batch of input concentration vectors (shape: [batch_size, num_input])
+        :param conc_hidden: Hidden layer concentration
+        :param conc_out: Output layer concentration
+        :param precision: Tolerance for convergence
+        :return: Final states for all input patterns, and the number of iterations per pattern
+        """
+        batch_size = patterns.shape[0]  # Number of input patterns
+        num_species = self.num_species
+
+        # Initialize concentrations for all input patterns
+        concentrations = np.ones((batch_size, num_species)) * conc_hidden
+        concentrations[:, :self.num_input] = patterns  # Set input concentrations
+        concentrations[:, -self.num_output:] = conc_out  # Set output concentrations
+
+        # Initialize states and convergence variables
+        states = np.zeros((batch_size, num_species))  # Shape: [batch_size, num_species]
+        prev_states = np.zeros_like(states)
+        ac_precision = 2.0 * precision * np.ones(batch_size)  # One precision value per pattern
+        max_iterations = 1000000  # Optional: Set a maximum number of iterations
+        iteration_counts = np.zeros(batch_size, dtype=int)  # Track iterations for each pattern
+
+        # Iteratively solve for equilibrium concentrations
+        while np.any(ac_precision > precision):  # Continue until all patterns converge
+            prev_states = states.copy()
+            states = concentrations / (1.0 + np.dot(states, K.T))  # Update states in parallel for all patterns
+            deltas = 2.0 * np.abs(prev_states - states) / (np.abs(prev_states + states) + precision / 10)
+            ac_precision = np.max(deltas, axis=1)  # Update precision for each pattern
+            iteration_counts += 1
+            if np.all(iteration_counts >= max_iterations):  # Safety check to prevent infinite loops
+                raise ValueError("inference dynamics not converging")
+                print('states=',states)
+                print('affinity matrix=',K)
+
+
+        # for debug purpose 
+        #print(states - concentrations / (1.0 + np.dot(states, K.T)))
+        return states, iteration_counts
+
+    def compute_losses(self,labels,outputs,loss,out_losses):
+        N_patt = labels.shape[0]
+        c_inf = np.min(labels)
+        c_sup = np.max(labels)
+
+        if loss == 1:  # entropic loss
+
+            s_matrix = (labels - c_inf) / (c_sup - c_inf) 
+            outputs_clipped = np.clip(outputs, 1e-10, self.conc_out)
+            off_list=np.log(np.max((1-s_matrix)*outputs_clipped,axis=1))
+            on_list=np.min(s_matrix*np.log(outputs_clipped),axis=1)
+            list_losses=off_list-on_list
+            score = np.average(list_losses)
+
+        elif loss == 2:  # mean squared error (mse) 
+
+            if out_losses == 1:
+                list_losses = np.sum(np.power(outputs - labels, 2),axis=1)
+            score = np.average(np.power(outputs - labels, 2))*3./2
+
+        elif loss == 3: # contrast loss
+
+            s_matrix = (labels - c_inf) / (c_sup - c_inf)  # Shape: [N_patt, num_output]
+            outputs_clipped = np.clip(outputs, 1e-10, self.conc_out)/self.conc_out  # regularizators  
+
+            #label_indices = np.argmax(labels, axis=1) # Shape: [N_patt]; label_indices=0,1,2
+            #num_labels=labels.shape[1]
+            on_matrix=s_matrix*np.log(outputs_clipped)            
+            off_matrix=(1.-s_matrix)*outputs_clipped
+
+            ## first version of the score 
+            # score=-np.average(on_matrix)+0.5*np.average(np.log(np.average(off_matrix,axis=0)))
+            list_scores=np.log(3./2.*np.average(off_matrix,axis=0))-3.*np.average(on_matrix,axis=0)
+            score=np.max(list_scores)
+
+            if out_losses == 1:
+                list_losses=np.average(on_matrix,axis=1)
+
+        elif loss == 4: # symmetric loss
+
+            s_matrix = (labels - c_inf) / (c_sup - c_inf)  # Shape: [N_patt, num_output]
+            outputs_clipped = np.clip(outputs, 1e-10, self.conc_out)/self.conc_out  # regularizators 
+
+            on_matrix=np.log(1-np.min(s_matrix*outputs_clipped,axis=1))
+            off_matrix=np.log(np.max((1-s_matrix)*outputs_clipped,axis=1))
+            
+            list_losses=on_matrix+off_matrix
+            score=np.average(list_losses)
+                
+        else:
+            raise ValueError("Invalid loss type. Must be 1, or 2, or 3, or 4.")
+
+        if out_losses == 1:
+            return score , list_losses
+        else:
+            return score 
+
+
+    def calculate_W(self, patterns, labels, states, loss, precision):
+        """
+        Calculate iteratively generalized forces to calculate graients in parameters space
+        :param precision: tolerance used in the convergence routine
+        """  
+
+        N_patt = labels.shape[0]
+        c_inf = np.min(labels)
+        c_sup = np.max(labels)
+        num_species = self.num_species
+
+        i_out = self.num_species-labels.shape[1]
+        outputs = states[:, i_out:]
+
+        concentrations = np.ones((N_patt, num_species)) * self.conc_hidden
+        concentrations[:, :self.num_input] = patterns  # Set input concentrations
+        concentrations[:, -self.num_output:] = self.conc_out  # Set output concentrations
+
+        ac_precision = 2.*precision
+        error_output = np.zeros_like(states)
+
+        #print('outputs=',outputs)
+
+        if loss == 1:   
+
+            s_matrix = (labels - c_inf) / (c_sup - c_inf) 
+            outputs_clipped = np.clip(outputs, 1e-10, self.conc_out)
+
+            #print('s_matrix=',s_matrix)
+            #print('outputs_clipped=',outputs_clipped)
+
+            off_matrix=np.zeros_like(states)
+            off_list = np.argmax((1-s_matrix)*outputs_clipped,axis=1)+i_out            
+            off_matrix[np.arange(off_matrix.shape[0]), off_list] = 1.0
+            off_matrix[:,i_out:]=off_matrix[:,i_out:]*(1-s_matrix)/outputs_clipped
+
+            #print('off_matrix=',off_matrix[:,i_out:])
+
+            on_matrix=np.zeros_like(states)
+            on_list = np.argmin(s_matrix*np.log(outputs_clipped),axis=1)+i_out
+            on_matrix[np.arange(off_matrix.shape[0]), on_list] = 1.0
+            on_matrix[:,i_out:]=on_matrix[:,i_out:]*s_matrix/outputs_clipped
+
+            #print('on_matrix=',on_matrix[:,i_out:])
+
+            error_output = (off_matrix - on_matrix)/N_patt
+
+        elif loss==2: # mse loss
+
+            error_output[:,i_out:]=(states[:,i_out:]-labels)/N_patt
+
+        elif loss==3: # contrast loss 
+
+            s_matrix = (labels - c_inf) / (c_sup - c_inf)  # Shape: [N_patt, num_output]
+            outputs_clipped = np.clip(outputs, 1e-10, self.conc_out)/self.conc_out  # regularizators  
+
+            #label_indices = np.argmax(labels, axis=1) # Shape: [N_patt]; label_indices=0,1,2
+            #num_labels=labels.shape[1]
+            on_matrix=s_matrix*np.log(outputs_clipped)            
+            off_matrix=(1.-s_matrix)*outputs_clipped
+
+            list_scores=np.log(3./2.*np.average(off_matrix,axis=0))-3.*np.average(on_matrix,axis=0)
+            score=np.max(list_scores)
+            imax=np.argmax(list_scores)
+
+            error_output[:,i_out+imax]=(1-s_matrix[:,imax])/np.average(off_matrix,axis=0)[imax] \
+                    -3.*s_matrix[:,imax]/outputs_clipped[:,imax]
+
+            error_output=error_output/N_patt
+
+        N_it=0
+        W_forces=np.zeros_like(states)
+                        
+        while(ac_precision>precision):
+
+            prev_W=np.copy(W_forces)
+
+            #print('states=',states)
+            #print('error_output=',error_output)
+
+            for alpha in range(N_patt):
+                #print(W_forces[alpha,:])
+
+
+                W_forces[alpha,:]=np.power(states[alpha,:],2)/concentrations[alpha,:] * \
+                  (error_output[alpha,:]-np.dot(self.K,W_forces[alpha,:]))
+                
+                #print(W_forces[alpha,:])
+                #print(self.K)
+                #print(np.dot(self.K,W_forces[alpha,:]))
+                
+                #return
+
+            #print('W_forces=',W_forces)
+            
+            if(np.any(np.isnan(W_forces)) or np.any(np.isinf(W_forces))):
+                print('W_forces=',W_forces)
+                print('states=',states)
+                print('self.K=',self.K)
+                print('concentrations=',concentrations)
+                print('error_output=',error_output)
+                print('np.power(states,2)/concentrations=',np.power(states,2)/concentrations)
+                raise ValueError("W_forces nan or inf")
+            
+            if(np.any(np.isnan(W_forces+prev_W)) or np.any(np.isinf(W_forces+prev_W))):
+                print('W_forces=',W_forces)
+                print('states=',states)
+                print('self.K=',self.K)
+                raise ValueError("W_forces+prev_W nan or inf")
+            
+            delta=2.*np.abs(prev_W-W_forces)/np.abs(prev_W+W_forces+precision/10)
+            
+            ac_precision=np.max(delta)
+
+            N_it+=1
+
+        return W_forces, error_output, N_it
+
+    def train(self, patterns, labels, precision, loss, rate_k, learning_rate, iteration): 
+        """
+        Learning dynamics (triggered by a batch)
+
+        :param   e_C/e_K: learning rate of the concentration/association constants
+               precision: precision used in the calculation of the generalized forces and inference dynamics 
+        """
+        N_patt=patterns.shape[0]
+        if (N_patt != len(labels)):
+            raise ValueError("train: different number of patterns and labels")        
+
+        # inference dynamics 
+        #
+        states, N_iterations = self.network_dynamics(self.K, patterns,   \
+                             self.conc_hidden, self.conc_out, precision)        
+        W_forces, error_output, N_it = self.calculate_W(patterns, labels, states, loss, precision)
+
+        # update in the connectivity matrix and hidden concentration  
+        #
+        d_K = np.zeros((N_patt,self.num_species, self.num_species)) 
+
+        outer1 = W_forces[:, :, np.newaxis] * states[:, np.newaxis, :]
+        outer2 = states[:, :, np.newaxis] * W_forces[:, np.newaxis, :]
+        diag_term = np.eye(self.num_species) * (W_forces * states)[:, np.newaxis, :]
+        d_K = -self.K*np.sum(outer1 + outer2 - diag_term, axis=0)+rate_k 
+        
+        # Update of Adam optimizer parameters
+        self.m_DG = self.beta1 * self.m_DG + (1 - self.beta1) * d_K
+        self.v_DG = self.beta2 * self.v_DG + (1 - self.beta2) * d_K**2
+        e_K = learning_rate * self.m_DG/(1-self.beta1**iteration) / \
+              (np.sqrt(self.v_DG/(1-self.beta2**iteration))+self.epsilon)
+        
+        # print('d_K=',d_K)
+        #
+        DGp=np.minimum( np.log(np.clip(self.K, a_min=np.power(10.,-6), a_max=100000.))  \
+                       -e_K , np.log(10000.) )
+        self.K = np.exp(DGp)
+        self.K = self.K*self.Kmask*self.Ksymm
+        self.K = self.K + self.K.T
+
+        # self.K=np.minimum(self.K,np.power(10.,4))
+
+        supp_hidden=np.zeros_like(states)
+        supp_hidden[:,patterns.shape[1]:states.shape[1]-labels.shape[1]]=1.0
+        d_chidd=np.sum(supp_hidden*W_forces*states)
+        
+        #update of Adam optimizer parameters
+        self.m_chidd = self.beta1 * self.m_chidd + (1 - self.beta1) * d_chidd
+        self.v_chidd = self.beta2 * self.v_chidd + (1 - self.beta2) * d_chidd**2
+        
+        e_C = learning_rate * self.m_chidd/(1-self.beta1**iteration) / \
+                (np.sqrt(self.v_chidd/(1-self.beta2**iteration))+self.epsilon)
+
+        self.conc_hidden=np.clip(self.conc_hidden-e_C,a_min=0.2,a_max=5.0)
+
+        out_losses=0
+        i_out = self.num_species-labels.shape[1]
+        outputs = states[:, i_out:]
+        score=self.compute_losses(labels,outputs,loss,out_losses)
+
+        #print('score=',score)
+        
+        return score
+    
+    # used to print out average and variance versus time of the output activities 
+    #
+    def output_activities(self, patterns, labels, precision, loss):
+        """
+        Compute affinities of the most performant model, assuming a one-hot encoding of labels.
+
+        :param patterns: Array of input patterns (shape: [N_patt, num_input])
+        :param labels: Array of one-hot encoded labels (shape: [N_patt, num_output])
+        :param conc_hidden: Hidden layer concentration
+        :param conc_out: Output layer concentration
+        :param precision: Precision for equilibrium calculation
+        :return: Normalized activities (shape: [num_labels, num_output])
+        """
+        N_patt = patterns.shape[0]  # Number of patterns
+        i_out = self.num_species - labels.shape[1]  # Output indices
+        num_output = self.num_species - i_out       # Number of output species
+        num_labels = labels.shape[1]               # Number of unique labels
+
+        # Initialize mean activities, variance of the activities, and counts
+        activities = np.zeros((num_labels, num_output))
+        variance_activity = np.zeros((num_labels, num_output))
+        #counts = np.zeros((num_labels, num_output))
+
+        # Run network dynamics for all patterns in a batch
+        states, _ = self.network_dynamics(self.K, patterns, self.conc_hidden, \
+                                          self.conc_out, precision)
+
+        # Extract output states for all patterns
+        outputs = states[:, i_out:]  # Shape: [N_patt, num_output]
+
+        # Determine the label indices for each pattern (assuming one-hot encoding)
+        label_indices = np.argmax(labels, axis=1)  # Shape: [N_patt]
+
+        # Vectorized aggregation of activities and counts
+        for label in range(num_labels):
+            mask = (label_indices == label)  # Boolean mask for current label
+            activities[label] = np.mean(outputs[mask], axis=0) 
+            variance_activity[label] = np.var(outputs[mask], axis=0)
+        #    counts[label] = np.sum(mask)  # Count occurrences of this label
+
+# no divisions by zero when using balanced batches (i.e., with the same number of patterns/class)             
+#        # Normalize activities by counts
+#        with np.errstate(divide='ignore', invalid='ignore'):  # Handle division by zero safely
+#            # normalized_activities = np.nan_to_num(activities / counts[:, None])
+#            normalized_activities = np.nan_to_num(activities / counts)
+
+        out_losses=0
+        ac_score = self.compute_losses(labels,outputs,loss,out_losses)
+
+        return ac_score, activities, variance_activity
+
+
+    def test_model(self, patterns, labels, precision):
+        """
+        Prepares scatter plot data by computing output states and grouping by label.
+
+        :param patterns: Array of input patterns (shape: [N_patt, num_input])
+        :param labels: Array of one-hot encoded labels (shape: [N_patt, num_labels])
+        :param conc_hidden: Hidden layer concentration
+        :param conc_out: Output layer concentration
+        :param precision: Precision for equilibrium calculation
+        :return: Arrays of affinities grouped by label (one per label)
+        """
+        # Output layer size and number of labels
+        i_out = self.num_species - labels.shape[1]
+        num_output = self.num_species - i_out
+        num_labels = labels.shape[1]
+
+        # Run network dynamics for all patterns
+        states, _ = self.network_dynamics(self.K, patterns, self.conc_hidden, \
+                                          self.conc_out, precision)
+
+        # Extract outputs (equilibrium states of the output species)
+        outputs = states[:, i_out:]  # Shape: [N_patt, num_output]
+
+        # Determine label indices for each pattern (assuming one-hot encoding)
+        label_indices = np.argmax(labels, axis=1)  # Shape: [N_patt]
+
+        # Initialize affinities for each label as lists
+        affinities = [np.empty((0, num_output)) for _ in range(num_labels)]
+
+        # Group outputs by their label using vectorized processing
+        for label in range(num_labels):
+            mask = (label_indices == label)  # Boolean mask for current label
+            affinities[label] = outputs[mask]  # Collect outputs for this label
+
+        return affinities
+
+
+    def test(self, patterns, labels, precision, debug):  # not sure we need this as the batches keep changing
+        """
+        Testing
+            
+        :param ...specify this...
+        """        
+        N_patt=len(patterns)
+        i_out=self.num_species-len(labels[0])
+        i=0
+        score=0.
+        while(i<N_patt):
+            Input_concentration=patterns[i]
+            if(debug):
+                print('---------------')
+                print('sample id=', i)
+                print('input layer=', Input_concentration)
+                print('state before inference=', self.state)
+            # calculation of the equilibrium concentrations
+            N_it=self.network_dynamics(Input_concentration, precision)
+            Output=CN.state[i_out:]
+            if(np.argmax(Output)==np.argmax(labels[i])):
+                score=score+1.            
+            if(debug):
+                print('argmax=',np.argmax(Output),np.argmax(labels[i]))
+                print('state after inference=', self.state)
+                print('output layer=', Output)
+                print('label=',labels[i])
+
+            i=i+1
+        if(debug):
+            print('score=', score/N_patt)
+
+        return score/N_patt
+
+
+
+# In[ ]:
+
+
+# Mutual information calculation 
+
+# In[4]:
+
+
+def compute_entropy(x, dx=0.02):
+    """
+    Compute the discrete Shannon entropy for a one-dimensional array x.
+    The distribution is estimated using a histogram with bin width dx.
+    
+    Parameters:
+      x  : 1D numpy array of data.
+      dx : The width of each bin (default 0.02).
+    
+    Returns:
+      The computed Shannon entropy.
+    """
+    # Define bin edges from the minimum to maximum value of x, using dx as step.
+    edges = np.arange(np.min(x), np.max(x) + dx, dx)
+    counts, _ = np.histogram(x, bins=edges, density=False)
+    total = np.sum(counts)
+    if total == 0:
+        return 0
+    p = counts / total
+    # Filter out zero probabilities to avoid log(0)
+    p = p[p > 0]
+    return -np.sum(p * np.log(p))
+
+def compute_mutual_information(a_list):
+    Dec = 1 / np.log(10)
+    I_max=1/3*np.log(3)+2/3*np.log(3/2)
+    # Compute transformed data for each dataset.
+    all_x, all_y, all_z = [], [], []
+    for a in a_list:
+        x = Dec * np.log(a[:, 0])
+        y = Dec * np.log(a[:, 1])
+        z = Dec * np.log(a[:, 2])
+        all_x.append(x)
+        all_y.append(y)
+        all_z.append(z)
+
+    H0 = compute_entropy(all_x[0])
+    H1 = compute_entropy(all_y[1])
+    H2 = compute_entropy(all_z[2])
+    combined_12 = np.concatenate([all_x[1], all_x[2]])
+    combined_02 = np.concatenate([all_y[0], all_y[2]])
+    combined_01 = np.concatenate([all_z[0], all_z[1]])
+        # Combined: concatenate all x values.
+    combined_x = np.concatenate(all_x)
+    combined_y = np.concatenate(all_y)
+    combined_z = np.concatenate(all_z)
+    H_12 = compute_entropy(combined_12)
+    H_02 = compute_entropy(combined_02)
+    H_01 = compute_entropy(combined_01)
+
+    mutual_information_x = compute_entropy(combined_x) - (1/3 * H0 + 2/3 * H_12)
+    mutual_information_y = compute_entropy(combined_y) - (1/3 * H1 + 2/3 * H_02)
+    mutual_information_z = compute_entropy(combined_z) - (1/3 * H2 + 2/3 * H_01)
+    mutual_information_x=mutual_information_x/I_max
+    mutual_information_y=mutual_information_y/I_max
+    mutual_information_z=mutual_information_z/I_max
+
+    return mutual_information_x, mutual_information_y, mutual_information_z
+
+
+
+# In[6]:
+
+
+# input files (someone may be None by default)
+K_init_file=None # 'K_matrix_GD.json' # None if we want to initialize K from scratch
+network_config_file='network_config_GD.json'
+patterns_run_config_file='patterns_run_config_GD.json'
+patterns_0_file='patterns_0.npy' # None if we want to initialize patterns from scratch
+
+with open(patterns_run_config_file, 'r') as f:
+    config = json.load(f)
+    sigma2_0 = config['sigma2_0']
+    mean_0 = config['mean_0']
+    sigma2 = config['sigma2']
+    loss = config['loss']
+    unpert_pattern = config['unpert_pattern']
+    precision = config['precision']
+    rate_k = config['rate_k']
+    learning_rate = config['learning_rate']
+    N_batches_passed= config['N_batches_passed']
+    N_patt= config['N_patt']
+    
+sigma_0=np.sqrt(sigma2_0) # variance of the starting patterns' distribution 
+D=np.sqrt(sigma2) # variance of the noise 
+
+# output file 
+patterns_0_file='patterns_0.npy' 
+scatter_unlearned_file='a1a2a3_NotLed.npz'  
+scatter_file='a1a2a3_D2.npz'
+loss_file='loss_D2.npz'
+activities_file='activities_D2.npz'
+hidden_file='hidden_conc_D2.npz'
+K_fin_matrix='K_matrix_D2.json'
+CN_state_file='CN_state_D2.npz'
+list_K_file='list_K_matrix_D2.npy'
+
+#CN=ChemicalNetwork(num_species=N_species, num_input=N_inp,num_output=N_out,conc_hidden=conc_hidden, \
+#                   conc_out=conc_out,config_file=None)
+CN=ChemicalNetwork(num_species=None, num_input=None, num_output=None,conc_hidden=None, \
+                   conc_out=None, config_file=network_config_file)
+
+
+if K_init_file is None:
+    CN.initialise_K(sigma_0=sigma_0,mean_0=mean_0,K_file=None)
+else:
+    CN.initialise_K(sigma_0=None,mean_0=None,K_file=K_init_file)
+
+#print('starting affinity matrix=',CN.K)
+
+
+if(unpert_pattern==None):
+    patterns_0=np.random.lognormal(mean=0, sigma=np.sqrt(2.0),size=(3,6))
+else:
+    patterns_0=np.load(patterns_0_file)
+    
+#if(unpert_pattern=='A'):
+#    patterns_0=np.array([[4.9, 0.54, 0.78,  0.11,  0.70,  1.5], 
+#     [3.9,  0.37,  0.33,  0.95, 0.60,  1.4], 
+#     [3.1,  0.80,  0.07,  1.1,   0.18, 26.8]])
+
+#if(unpert_pattern=='B'):
+#    patterns_0=np.array([[ 0.24001358,  3.19728681,  9.23301249,  1.44793741,  0.79277543,  0.56445251],
+#     [ 0.28378802,  1.98128614,  4.97609186,  0.19833512,  2.35384955,  0.09018742],
+#     [ 1.55839014,  0.52222897,  0.913423,    7.07690945, 41.08854987,  0.5581125]])
+    
+#if(unpert_pattern=='C'):
+#    patterns_0=np.array([[ 1.32841165,  0.38709303,  2.29672817,  9.45836126, 20.61518202,  0.09458833],
+# [33.60512186,  0.7034888,   2.28065926,  3.14203644,  5.32061224,  0.46844228],
+# [ 0.58673294,  1.16767597,  8.43878063,  0.10142915,  0.69748406,  0.89055241]])
+
+#if(unpert_pattern=='D'):
+#    patterns_0=np.array([[0.57127289, 0.83179442, 2.14768857, 5.98053458, 0.69395479, 3.37960999],
+# [2.27496627, 3.21611655, 7.33597589, 0.49539532, 3.31741288, 0.3586194 ],
+# [3.83556362, 5.05860257, 2.5699809,  1.84195934, 0.19433368, 1.49518432]])
+    
+labels_0 = np.array([[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]])     
+
+def gen_patt_label(N_patt, D):
+    # Randomly select indices from patterns_0
+    # indices = np.random.randint(0, patterns_0.shape[0], size=N_patt)    
+    # Balanced number of patterns 
+    indices=np.zeros(N_patt,dtype=int)
+    N1=int(N_patt/3)
+    N2=2*N1
+    indices[N1:]+=1
+    indices[N2:]+=1
+    selected_labels = labels_0[indices, :]
+    selected_patterns = patterns_0[indices, :]
+    # Apply log-normal scaling to the patterns
+    scaling_factors = np.random.lognormal(mean=0, sigma=D, size=(N_patt, selected_patterns.shape[1]))
+    scaled_patterns = selected_patterns * scaling_factors
+    return scaled_patterns, selected_labels
+
+
+np.save(patterns_0_file, patterns_0)
+
+# In[ ]:
+
+# Train the model
+
+# In[10]:
+
+
+list_batches=np.array([])
+list_loss=np.array([])
+list_conc_hidden=np.array([])
+list_Ks=[]
+list_a_patt1 = np.empty((0,np.shape(labels_0)[1]))
+list_a_patt2 = np.empty((0,np.shape(labels_0)[1]))
+list_a_patt3 = np.empty((0,np.shape(labels_0)[1]))
+list_a_var_patt1 = np.empty((0,np.shape(labels_0)[1]))
+list_a_var_patt2 = np.empty((0,np.shape(labels_0)[1]))
+list_a_var_patt3 = np.empty((0,np.shape(labels_0)[1]))
+
+# scatter plots of the unlearned model
+patterns_scatter, labels_scatter = gen_patt_label(5*N_patt,D)
+a1_0, a2_0, a3_0 = CN.test_model(patterns_scatter, labels_scatter, precision)
+np.savez(scatter_unlearned_file, arr1=a1_0, arr2=a2_0,arr3=a3_0)
+#
+
+repeated_batches=0
+if repeated_batches:
+    list_patterns = []
+    list_labels = []
+    ii=0
+    Nsubbatches=100
+    for ii in np.arange(Nsubbatches):
+        patterns, labels = gen_patt_label(N_patt, D)
+        list_patterns.append(patterns)
+        list_labels.append(labels)
+
+# monitor running time 
+import time
+with open("running_log.txt", "a") as f:
+    start_time = time.time()
+
+    for i_batch in np.arange(N_batches_passed): 
+
+        if repeated_batches==1:
+            patterns = list_patterns[ii]
+            labels = list_labels[ii]
+            ii = np.mod(ii+1,Nsubbatches)
+        else:                                     
+            patterns, labels = gen_patt_label(N_patt, D)
+
+        score=CN.train(patterns, labels, precision, loss, rate_k,learning_rate,i_batch+1)
+        # print(i_epoch, CN.conc_hidden, CN.K[0,14], score)
+
+        # testing the model    
+        if(np.mod(i_batch,100) == 0):
+            patterns_test, labels_test = gen_patt_label(4*N_patt, D)
+            ac_score, activities, variances = CN.output_activities(patterns_test,labels_test,precision,loss)
+            list_batches=np.append(list_batches,i_batch)
+            list_loss=np.append(list_loss,ac_score)
+            list_conc_hidden=np.append(list_conc_hidden, CN.conc_hidden)
+            list_a_patt1 = np.vstack((list_a_patt1,activities[0]))
+            list_a_patt2 = np.vstack((list_a_patt2,activities[1]))
+            list_a_patt3 = np.vstack((list_a_patt3,activities[2]))
+            list_a_var_patt1 = np.vstack((list_a_var_patt1,variances[0]))
+            list_a_var_patt2 = np.vstack((list_a_var_patt2,variances[1]))
+            list_a_var_patt3 = np.vstack((list_a_var_patt3,variances[2]))
+
+        if np.mod(i_batch*10,N_batches_passed)==0:
+            list_Ks.append(CN.K)
+            print(i_batch, score)
+            elapsed_time = time.time() - start_time
+            f.write(f"Batch {i_batch}: Score = {score:.4f}, Time = {elapsed_time:.2f}s\n")
+
+    a1, a2, a3 = CN.test_model(patterns_scatter, labels_scatter, precision)
+    np.savez(scatter_file, arr1=a1, arr2=a2,arr3=a3)
+
+
+# In[46]:
+
+# Save the loss evolution 
+np.savez(loss_file, arr1=list_batches, arr2=list_loss)
+
+# Save the activities evolution 
+np.savez(activities_file, arr1=list_batches, arr2=list_a_patt1, arr3=list_a_var_patt1, \
+                                         arr4=list_a_patt2, arr5=list_a_var_patt2, \
+                                         arr6=list_a_patt3, arr7=list_a_var_patt3)
+
+# Save the hidden concentrations evolution
+np.savez(hidden_file, arr1=list_batches, arr2=list_conc_hidden)
+
+# Save the learned affinity matrix K
+CN.save_k_matrix(K_fin_matrix)
+
+out=CN.network_dynamics(CN.K, patterns_0, CN.conc_hidden, CN.conc_out, precision=np.power(10.,-10))[0]
+np.savez(CN_state_file, arr1=out[0], arr2=out[1], arr3=out[2])
+
+# Save list_Ks to a file
+np.save(list_K_file, list_Ks)
+
+# In[ ]:

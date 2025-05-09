@@ -1,0 +1,11 @@
+#!/bin/bash
+
+for i in `seq 1, 41`
+do
+    print $i
+done
+
+
+
+
+

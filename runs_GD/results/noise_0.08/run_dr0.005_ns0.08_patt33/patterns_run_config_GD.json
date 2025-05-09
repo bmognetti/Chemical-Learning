@@ -1,0 +1,12 @@
+{
+    "sigma2_0": 2.0,
+    "mean_0": 0.0,
+    "sigma2": 0.08,
+    "loss": 3,
+    "unpert_pattern": "C",
+    "precision": 1e-6,
+    "rate_k": 0.005,
+    "learning_rate": 0.005,
+    "N_batches_passed": 10000,
+    "N_patt": 48
+}

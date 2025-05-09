@@ -1,0 +1,146 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Figure Navigator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .controls { display: flex; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
+        .param-group { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 5px; background: #f9f9f9; }
+        button { 
+            padding: 8px 15px; margin: 0 5px; cursor: pointer; 
+            background: #3498db; color: white; border: none; border-radius: 4px;
+        }
+        #image-container { 
+            min-height: 500px; border: 2px dashed #ccc; border-radius: 5px;
+            display: flex; justify-content: center; align-items: center;
+            background: white; margin-top: 20px;
+        }
+        #current-image { max-width: 95%; max-height: 80vh; }
+        .error { color: #e74c3c; padding: 15px; background: #fdecea; }
+        .path-display { 
+            margin: 15px 0; padding: 10px; background: #f0f7ff;
+            font-family: monospace; word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Figure Navigator</h1>
+        
+        <div class="controls">
+            <div class="param-group">
+                <h3>Noise</h3>
+                <div style="margin: 10px 0; font-weight: bold;" id="noise-value">0.0</div>
+                <div>
+                    <button onclick="navigate('noise', -1)">⬅ Previous</button>
+                    <button onclick="navigate('noise', 1)">Next ➡</button>
+                </div>
+            </div>
+            
+            <div class="param-group">
+                <h3>Cocktail</h3>
+                <div style="margin: 10px 0; font-weight: bold;" id="cocktail-value">1</div>
+                <div>
+                    <button onclick="navigate('cocktail', -1)">⬅ Previous</button>
+                    <button onclick="navigate('cocktail', 1)">Next ➡</button>
+                </div>
+            </div>
+            
+            <div class="param-group">
+                <h3>Drift</h3>
+                <div style="margin: 10px 0; font-weight: bold;" id="drift-value">0.0</div>
+                <div>
+                    <button onclick="navigate('drift', -1)">⬅ Previous</button>
+                    <button onclick="navigate('drift', 1)">Next ➡</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="path-display" id="path-display">
+            Current path will appear here
+        </div>
+        
+        <div id="image-container">
+            <div>Select parameters to view the figure</div>
+        </div>
+    </div>
+
+    <script>
+        // Current state
+        const state = {
+            noise: 0,
+            cocktail: 0,
+            drift: 0,
+            params: {"noise": ["0.0", "0.125"], "cocktail": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48"], "drift": ["0.0", "0.0001", "0.001", "0.005"]}
+        };
+
+        // Build the complete file path
+        function buildPath() {
+            const noise = state.params.noise[state.noise];
+            const cocktail = state.params.cocktail[state.cocktail];
+            const drift = state.params.drift[state.drift];
+            
+            // THIS IS THE CRUCIAL PATH CONSTRUCTION
+            return `./noise_${noise}/run_dr${drift}_ns${noise}_patt${cocktail}/composite.svg`;
+        }
+        
+        // Update the display
+        function updateDisplay() {
+            // Update parameter values
+            document.getElementById('noise-value').textContent = state.params.noise[state.noise];
+            document.getElementById('cocktail-value').textContent = state.params.cocktail[state.cocktail];
+            document.getElementById('drift-value').textContent = state.params.drift[state.drift];
+            
+            // Get the current path
+            const currentPath = buildPath();
+            document.getElementById('path-display').textContent = `Current path: ${currentPath}`;
+            
+            // Load the image
+            const img = new Image();
+            img.onload = function() {
+                document.getElementById('image-container').innerHTML = '';
+                document.getElementById('image-container').appendChild(img);
+            };
+            img.onerror = function() {
+                document.getElementById('image-container').innerHTML = `
+                    <div class="error">
+                        Image not found at:<br>
+                        <code>${currentPath}</code><br><br>
+                        Please verify:<br>
+                        1. The file exists at this location<br>
+                        2. The path is correct (case-sensitive)<br>
+                        3. The SVG file is valid
+                    </div>`;
+            };
+            img.src = currentPath;
+            img.id = 'current-image';
+            img.alt = `Figure: ${currentPath}`;
+        }
+        
+        // Handle navigation
+        function navigate(param, direction) {
+            state[param] += direction;
+            const maxIndex = state.params[param].length - 1;
+            
+            // Handle wrapping
+            if (state[param] < 0) state[param] = maxIndex;
+            else if (state[param] > maxIndex) state[param] = 0;
+            
+            updateDisplay();
+        }
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') navigate('cocktail', -1);
+            if (e.key === 'ArrowRight') navigate('cocktail', 1);
+            if (e.key === 'ArrowUp') navigate('drift', -1);
+            if (e.key === 'ArrowDown') navigate('drift', 1);
+        });
+        
+        // Initial load
+        updateDisplay();
+    </script>
+</body>
+</html>

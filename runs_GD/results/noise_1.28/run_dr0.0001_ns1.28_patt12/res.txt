@@ -1,0 +1,26 @@
+The following modules were not unloaded:
+  (Use "module --force purge" to unload all):
+
+  1) releases/2021b   2) tis/2018.01
+Lmod has detected the following error: The following module(s) are unknown:
+"Python/3.11.3-GCCcore-12.3.0"
+
+Please check the spelling or version number. Also try "module spider ..."
+It is also possible your cache file is out-of-date; it may help to try:
+  $ module --ignore_cache load "Python/3.11.3-GCCcore-12.3.0"
+
+Also make sure that all modulefiles written in TCL start with the string
+#%Module
+
+
+
+0 2.2053490373158606
+1000 -1.1562954117169824
+2000 -1.5786092502350022
+3000 -3.4328022610307327
+4000 -3.6477806708783223
+5000 -2.1677797251583026
+6000 -2.638859424389848
+7000 -2.0354134467772695
+8000 -4.47964404601188
+9000 -3.3565837640780662
